@@ -1,345 +1,405 @@
-import React, { useState, useEffect } from 'react';
-import './index.css';
+import { useState, useEffect } from 'react'
+import './index.css'
 
-// Mock data based on real Notion structure from notion-ids.json
-const MOCK_TASKS = [
-  { id: 1, title: 'Follow up with school principal about pilot program', priority: 'P1', status: 'In Progress', due: '2026-02-20', project: 'Ark Academy' },
-  { id: 2, title: 'Draft grant application', priority: 'P1', status: 'Todo', due: '2026-02-18', project: 'Oilyburger' },
-  { id: 3, title: 'Review Woojoosnt proposal', priority: 'P0', status: 'Done', due: '2026-02-25', project: 'Woojoosnt' },
-  { id: 4, title: 'Update website copy', priority: 'P2', status: 'Todo', due: '2026-02-28', project: 'Ark Academy' },
-  { id: 5, title: 'Send invoice to client', priority: 'P1', status: 'Todo', due: '2026-02-15', project: 'Woojoosnt' },
-  { id: 6, title: 'Schedule team meeting', priority: 'P2', status: 'In Progress', due: '2026-02-27', project: 'Ark Academy' },
-  { id: 7, title: '[ALICE] Clean up duplicate tasks', priority: 'P1', status: 'Todo', due: '2026-02-13', project: 'Ops' },
-  { id: 8, title: '[ALICE] Review overdue P1s', priority: 'P1', status: 'Todo', due: '2026-02-13', project: 'Ops' },
-];
+// Database IDs from notion-ids.json
+const DB_IDS = {
+  tasks: '2fced264-4bae-817c-9b81-f39008167d85',
+  leads: '2fced264-4bae-816d-86ea-f69fc6cfc918',
+  grants: '2fced264-4bae-81a8-af4b-f57359a7d868',
+}
 
-const MOCK_LEADS = [
-  { id: 1, name: 'Seoul International School', status: 'Contacted', value: 50000, followUp: '2026-02-28' },
-  { id: 2, name: '', status: 'New', value: 0, followUp: '2026-03-01' }, // Untitled - data quality issue
-  { id: 3, name: 'Yonsei Academy', status: 'Negotiating', value: 75000, followUp: '2026-02-26' },
-  { id: 4, name: '', status: 'New', value: 0, followUp: '2026-03-05' }, // Untitled - data quality issue
-  { id: 5, name: 'Global Edu Partners', status: 'Qualified', value: 120000, followUp: '2026-02-27' },
-];
+// Mock data for when Notion token is not available
+const MOCK_DATA = {
+  tasks: [
+    { id: '1', title: 'Review Q1 Grant Applications', priority: 'P0', status: 'In Progress', dueDate: '2026-02-20', overdue: true },
+    { id: '2', title: 'Update Investor Deck', priority: 'P0', status: 'Not Started', dueDate: '2026-02-28', overdue: false },
+    { id: '3', title: 'Follow up with Alice Corp', priority: 'P1', status: 'Done', dueDate: '2026-02-25', overdue: false },
+    { id: '4', title: 'Schedule team standup', priority: 'P1', status: 'In Progress', dueDate: '2026-02-15', overdue: true },
+    { id: '5', title: 'Clean up Notion database', priority: 'P1', status: 'Not Started', dueDate: '2026-02-18', overdue: true },
+    { id: '6', title: 'Research competitor analysis', priority: 'P2', status: 'Not Started', dueDate: '2026-03-01', overdue: false },
+    { id: '7', title: 'Update documentation', priority: 'P2', status: 'Done', dueDate: '2026-02-25', overdue: false },
+    { id: '8', title: 'Fix dashboard bug', priority: 'P1', status: 'Done', dueDate: '2026-02-25', overdue: false },
+    { id: '9', title: 'Call potential partner', priority: 'P1', status: 'In Progress', dueDate: '2026-02-16', overdue: true },
+    { id: '10', title: 'Prepare monthly report', priority: 'P1', status: 'Not Started', dueDate: '2026-02-19', overdue: true },
+  ],
+  leads: [
+    { id: '1', title: 'Alice Corporation', status: 'Contacted', company: 'Alice Corp', value: 50000 },
+    { id: '2', title: '', status: 'New', company: 'Unknown', value: 0, untitled: true },
+    { id: '3', title: 'Bob Industries', status: 'Qualified', company: 'Bob Industries', value: 75000 },
+    { id: '4', title: '', status: 'Contacted', company: 'Unknown', value: 0, untitled: true },
+    { id: '5', title: 'Charlie Ventures', status: 'Negotiation', company: 'Charlie Ventures', value: 120000 },
+  ],
+  grants: [
+    { id: '1', title: 'NSF SBIR Phase I', status: 'Submitted', amount: 275000, deadline: '2026-03-15' },
+    { id: '2', title: '', status: 'Draft', amount: 0, deadline: '2026-04-01', untitled: true },
+    { id: '3', title: 'DOE Clean Energy Grant', status: 'In Review', amount: 500000, deadline: '2026-02-28' },
+    { id: '4', title: 'NIH R01 Research', status: 'Awarded', amount: 1500000, deadline: '2026-01-15' },
+    { id: '5', title: '', status: 'Draft', amount: 0, deadline: '2026-05-01', untitled: true },
+  ],
+}
 
-const MOCK_GRANTS = [
-  { id: 1, name: 'K-Startup Grant', status: 'Applied', amount: 50000000, deadline: '2026-03-15' },
-  { id: 2, name: '', status: 'Research', amount: 0, deadline: '2026-04-01' }, // Untitled - data quality issue
-  { id: 3, name: 'Seoul Innovation Fund', status: 'Drafting', amount: 30000000, deadline: '2026-03-01' },
-  { id: 4, name: '', status: 'New', amount: 0, deadline: '2026-04-15' }, // Untitled - data quality issue
-];
+const cardClass = "bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 shadow-xl";
+const getBadgeClass = (priority) => {
+  const base = "px-3 py-1 rounded-full text-xs font-semibold border ";
+  switch(priority) {
+    case 'P0': return base + "bg-red-500/20 text-red-300 border-red-500/30";
+    case 'P1': return base + "bg-orange-500/20 text-orange-300 border-orange-500/30";
+    case 'P2': return base + "bg-blue-500/20 text-blue-300 border-blue-500/30";
+    default: return base + "bg-gray-500/20 text-gray-300 border-gray-500/30";
+  }
+};
 
 function App() {
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [countdown, setCountdown] = useState(60);
+  const [data, setData] = useState({ tasks: [], leads: [], grants: [] })
+  const [loading, setLoading] = useState(true)
+  const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [usingMockData, setUsingMockData] = useState(false)
+  const [error, setError] = useState(null)
+  const [countdown, setCountdown] = useState(60)
 
-  // Auto-refresh countdown
+  const fetchNotionData = async () => {
+    const token = import.meta.env.VITE_NOTION_TOKEN
+    
+    if (!token) {
+      console.log('No Notion token found, using mock data')
+      setData(MOCK_DATA)
+      setUsingMockData(true)
+      setLoading(false)
+      setLastRefresh(new Date())
+      setCountdown(60)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      }
+
+      const [tasksRes, leadsRes, grantsRes] = await Promise.all([
+        fetch(`https://api.notion.com/v1/databases/${DB_IDS.tasks}/query`, { method: 'POST', headers, body: JSON.stringify({ page_size: 100 }) }),
+        fetch(`https://api.notion.com/v1/databases/${DB_IDS.leads}/query`, { method: 'POST', headers, body: JSON.stringify({ page_size: 100 }) }),
+        fetch(`https://api.notion.com/v1/databases/${DB_IDS.grants}/query`, { method: 'POST', headers, body: JSON.stringify({ page_size: 100 }) }),
+      ])
+
+      const [tasksData, leadsData, grantsData] = await Promise.all([
+        tasksRes.json(), leadsRes.json(), grantsRes.json(),
+      ])
+
+      const tasks = tasksData.results?.map(task => {
+        const props = task.properties
+        const title = props.Name?.title?.[0]?.text?.content || 'Untitled'
+        const priority = props.Priority?.select?.name || 'P2'
+        const status = props.Status?.select?.name || 'Not Started'
+        const dueDate = props['Due Date']?.date?.start
+        const isOverdue = dueDate && new Date(dueDate) < new Date() && status !== 'Done'
+        return { id: task.id, title, priority, status, dueDate, overdue: isOverdue }
+      }) || []
+
+      const leads = leadsData.results?.map(lead => {
+        const props = lead.properties
+        const title = props.Name?.title?.[0]?.text?.content || ''
+        const status = props.Status?.select?.name || 'New'
+        const company = props.Company?.rich_text?.[0]?.text?.content || 'Unknown'
+        const value = props.Value?.number || 0
+        return { id: lead.id, title, status, company, value, untitled: !title }
+      }) || []
+
+      const grants = grantsData.results?.map(grant => {
+        const props = grant.properties
+        const title = props.Name?.title?.[0]?.text?.content || ''
+        const status = props.Status?.select?.name || 'Draft'
+        const amount = props.Amount?.number || 0
+        const deadline = props.Deadline?.date?.start
+        return { id: grant.id, title, status, amount, deadline, untitled: !title }
+      }) || []
+
+      setData({ tasks, leads, grants })
+      setUsingMockData(false)
+      setLastRefresh(new Date())
+      setCountdown(60)
+    } catch (err) {
+      console.error('Error fetching Notion data:', err)
+      setError('Failed to fetch Notion data. Using mock data.')
+      setData(MOCK_DATA)
+      setUsingMockData(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchNotionData()
+    const interval = setInterval(fetchNotionData, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
   useEffect(() => {
     const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          setLastUpdated(new Date());
-          return 60;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+      setCountdown(prev => prev > 0 ? prev - 1 : 60)
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [lastRefresh])
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const taskStats = {
+    total: data.tasks.length,
+    p0: data.tasks.filter(t => t.priority === 'P0').length,
+    p1: data.tasks.filter(t => t.priority === 'P1').length,
+    p2: data.tasks.filter(t => t.priority === 'P2').length,
+    overdue: data.tasks.filter(t => t.overdue).length,
+    done: data.tasks.filter(t => t.status === 'Done').length,
+  }
 
-  // Task analytics
-  const p0Tasks = MOCK_TASKS.filter(t => t.priority === 'P0');
-  const p1Tasks = MOCK_TASKS.filter(t => t.priority === 'P1');
-  const p2Tasks = MOCK_TASKS.filter(t => t.priority === 'P2');
-  const overdueTasks = MOCK_TASKS.filter(t => {
-    if (t.status === 'Done') return false;
-    const due = new Date(t.due);
-    return due < today;
-  });
+  const overdueTasks = data.tasks.filter(t => t.overdue).sort((a, b) => {
+    if (a.priority === 'P0' && b.priority !== 'P0') return -1
+    if (b.priority === 'P0' && a.priority !== 'P0') return 1
+    return new Date(a.dueDate) - new Date(b.dueDate)
+  })
 
-  // Data quality issues
-  const untitledLeads = MOCK_LEADS.filter(l => !l.name || l.name === '');
-  const untitledGrants = MOCK_GRANTS.filter(g => !g.name || g.name === '');
-  const totalDataIssues = untitledLeads.length + untitledGrants.length;
+  const untitledLeads = data.leads.filter(l => l.untitled)
+  const untitledGrants = data.grants.filter(g => g.untitled)
 
-  // Priority colors
-  const getPriorityColor = (p) => {
-    switch(p) {
-      case 'P0': return 'bg-red-500 text-white';
-      case 'P1': return 'bg-orange-500 text-white';
-      case 'P2': return 'bg-yellow-500 text-black';
-      default: return 'bg-gray-400 text-white';
-    }
-  };
+  const leadsByStatus = data.leads.reduce((acc, lead) => {
+    acc[lead.status] = (acc[lead.status] || 0) + 1
+    return acc
+  }, {})
 
-  const getStatusColor = (s) => {
-    switch(s) {
-      case 'Done': return 'text-green-600 font-semibold';
-      case 'In Progress': return 'text-blue-600';
-      case 'Todo': return 'text-gray-600';
-      default: return 'text-gray-600';
-    }
-  };
+  const grantsByStatus = data.grants.reduce((acc, grant) => {
+    acc[grant.status] = (acc[grant.status] || 0) + 1
+    return acc
+  }, {})
+
+  const totalPipeline = data.leads.reduce((sum, l) => sum + (l.value || 0), 0)
+  const totalGrants = data.grants.reduce((sum, g) => sum + (g.amount || 0), 0)
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading Ops HQ data...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-slate-800 mb-2">Notion Ops Dashboard</h1>
-              <p className="text-slate-500">Real-time visibility into tasks, leads, and data quality</p>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-slate-500">
-                Last updated: {lastUpdated.toLocaleTimeString()}
-              </div>
-              <div className="text-xs text-slate-400">
-                Auto-refresh in {countdown}s
-              </div>
-            </div>
+    <div className="min-h-screen p-6">
+      <div className="max-w-7xl mx-auto mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Ops HQ Dashboard
+            </h1>
+            <p className="text-gray-400 mt-1">Real-time overview of Tasks, Leads, and Grants</p>
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            {usingMockData && (
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                Mock Data
+              </span>
+            )}
+            <span className="text-sm text-gray-500">
+              Refresh in: {countdown}s
+            </span>
+            <span className="text-sm text-gray-500">
+              {lastRefresh.toLocaleTimeString()}
+            </span>
+            <button 
+              onClick={fetchNotionData}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+            >
+              Refresh Now
+            </button>
           </div>
         </div>
-
-        {/* Alerts Banner */}
-        {(overdueTasks.length > 0 || totalDataIssues > 0) && (
-          <div className="mb-6 space-y-3">
-            {overdueTasks.length > 0 && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
-                <div className="flex items-center">
-                  <span className="text-2xl mr-3">⚠️</span>
-                  <div>
-                    <p className="font-semibold text-red-800">
-                      {overdueTasks.length} Overdue Task{overdueTasks.length !== 1 ? 's' : ''}
-                    </p>
-                    <p className="text-red-600 text-sm">
-                      Including {overdueTasks.filter(t => t.priority === 'P1').length} P1 priority items
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            {totalDataIssues > 0 && (
-              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg">
-                <div className="flex items-center">
-                  <span className="text-2xl mr-3">🔧</span>
-                  <div>
-                    <p className="font-semibold text-amber-800">
-                      {totalDataIssues} Data Quality Issue{totalDataIssues !== 1 ? 's' : ''}
-                    </p>
-                    <p className="text-amber-600 text-sm">
-                      {untitledLeads.length} untitled leads, {untitledGrants.length} untitled grants
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+        {error && (
+          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-300">
+            {error}
           </div>
         )}
+      </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
-            <p className="text-sm text-slate-500 uppercase tracking-wide">P0 Tasks</p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">{p0Tasks.length}</p>
-            <p className="text-xs text-slate-400 mt-2">Critical priority</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-orange-500">
-            <p className="text-sm text-slate-500 uppercase tracking-wide">P1 Tasks</p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">{p1Tasks.length}</p>
-            <p className="text-xs text-slate-400 mt-2">
-              {overdueTasks.filter(t => t.priority === 'P1').length} overdue
-            </p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
-            <p className="text-sm text-slate-500 uppercase tracking-wide">Active Leads</p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">
-              {MOCK_LEADS.filter(l => l.status !== 'Closed').length}
-            </p>
-            <p className="text-xs text-slate-400 mt-2">{untitledLeads.length} need naming</p>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
-            <p className="text-sm text-slate-500 uppercase tracking-wide">Grant Opportunities</p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">{MOCK_GRANTS.length}</p>
-            <p className="text-xs text-slate-400 mt-2">{untitledGrants.length} untitled</p>
-          </div>
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Tasks Section */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200">
-              <h2 className="text-lg font-semibold text-slate-800 flex items-center">
-                <span className="mr-2">📋</span> Tasks Overview
-              </h2>
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <div className={cardClass}>
+            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+              <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+              Task Overview
+            </h2>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white/5 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-white">{taskStats.total}</div>
+                <div className="text-sm text-gray-400">Total Tasks</div>
+              </div>
+              <div className="bg-red-500/10 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-red-400">{taskStats.p0}</div>
+                <div className="text-sm text-gray-400">P0 Critical</div>
+              </div>
+              <div className="bg-orange-500/10 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-orange-400">{taskStats.p1}</div>
+                <div className="text-sm text-gray-400">P1 High</div>
+              </div>
+              <div className="bg-green-500/10 rounded-lg p-4 text-center">
+                <div className="text-3xl font-bold text-green-400">{taskStats.done}</div>
+                <div className="text-sm text-gray-400">Completed</div>
+              </div>
             </div>
-            <div className="p-6">
-              <div className="space-y-3">
-                {MOCK_TASKS.slice(0, 6).map(task => {
-                  const dueDate = new Date(task.due);
-                  const isOverdue = dueDate < today && task.status !== 'Done';
-                  return (
+
+            {overdueTasks.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-red-400">⚠️</span>
+                  <h3 className="text-lg font-medium text-red-300">
+                    Overdue Tasks ({overdueTasks.length})
+                  </h3>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {overdueTasks.map(task => (
                     <div 
                       key={task.id} 
-                      className={`p-3 rounded-lg border ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'}`}
+                      className="flex items-center justify-between p-3 bg-red-500/10 border border-red-500/20 rounded-lg"
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${isOverdue ? 'text-red-800' : 'text-slate-800'}`}>
-                            {task.title}
-                          </p>
-                          <div className="flex items-center gap-3 mt-1 text-xs">
-                            <span className={`px-2 py-0.5 rounded-full ${getPriorityColor(task.priority)}`}>
-                              {task.priority}
-                            </span>
-                            <span className={getStatusColor(task.status)}>{task.status}</span>
-                            <span className={isOverdue ? 'text-red-600 font-semibold' : 'text-slate-400'}>
-                              Due: {task.due}
-                            </span>
-                          </div>
-                        </div>
-                        {isOverdue && <span className="text-red-500 text-xs font-bold">OVERDUE</span>}
+                      <div className="flex items-center gap-3">
+                        <span className={getBadgeClass(task.priority)}>{task.priority}</span>
+                        <span className="text-sm">{task.title}</span>
                       </div>
+                      <span className="text-xs text-red-400">
+                        Due: {new Date(task.dueDate).toLocaleDateString()}
+                      </span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-              {MOCK_TASKS.length > 6 && (
-                <p className="text-center text-sm text-slate-400 mt-4">
-                  +{MOCK_TASKS.length - 6} more tasks
-                </p>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Data Quality Section */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-amber-50 px-6 py-4 border-b border-amber-200">
-              <h2 className="text-lg font-semibold text-amber-900 flex items-center">
-                <span className="mr-2">🔧</span> Data Quality Issues
+          {(untitledLeads.length > 0 || untitledGrants.length > 0) && (
+            <div className={`${cardClass} border-yellow-500/30`}>
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <span className="text-yellow-400">🔍</span>
+                Data Quality Alerts
               </h2>
-            </div>
-            <div className="p-6">
-              {/* Untitled Leads */}
+              
               {untitledLeads.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center">
-                    <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-yellow-300 mb-2">
                     Untitled Leads ({untitledLeads.length})
                   </h3>
                   <div className="space-y-2">
-                    {untitledLeads.map((lead, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100">
-                        <span className="text-sm text-red-700 italic">[Untitled Lead Entry]</span>
-                        <span className="text-xs text-slate-500">Status: {lead.status}</span>
+                    {untitledLeads.map(lead => (
+                      <div key={lead.id} className="flex items-center justify-between p-2 bg-yellow-500/10 rounded text-sm">
+                        <span className="text-gray-400 italic">Untitled entry</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-500/20 text-gray-300">{lead.status}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Untitled Grants */}
+              
               {untitledGrants.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3 flex items-center">
-                    <span className="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>
+                  <h3 className="text-sm font-medium text-yellow-300 mb-2">
                     Untitled Grants ({untitledGrants.length})
                   </h3>
                   <div className="space-y-2">
-                    {untitledGrants.map((grant, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-100">
-                        <span className="text-sm text-orange-700 italic">[Untitled Grant Entry]</span>
-                        <span className="text-xs text-slate-500">Status: {grant.status}</span>
+                    {untitledGrants.map(grant => (
+                      <div key={grant.id} className="flex items-center justify-between p-2 bg-yellow-500/10 rounded text-sm">
+                        <span className="text-gray-400 italic">Untitled entry</span>
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-500/20 text-gray-300">{grant.status}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {totalDataIssues === 0 && (
-                <div className="text-center py-8">
-                  <span className="text-4xl">✅</span>
-                  <p className="text-slate-500 mt-2">All data quality checks passed!</p>
-                </div>
-              )}
             </div>
-          </div>
-
-          {/* Leads Summary */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-green-50 px-6 py-4 border-b border-green-200">
-              <h2 className="text-lg font-semibold text-green-900 flex items-center">
-                <span className="mr-2">🎯</span> Leads Pipeline
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3">
-                {MOCK_LEADS.filter(l => l.name).map(lead => (
-                  <div key={lead.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-slate-800">{lead.name}</p>
-                      <p className="text-xs text-slate-500">Follow-up: {lead.followUp}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="px-3 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                        {lead.status}
-                      </span>
-                      {lead.value > 0 && (
-                        <p className="text-xs text-slate-600 mt-1">${(lead.value/1000).toFixed(0)}K</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Grants Summary */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-blue-50 px-6 py-4 border-b border-blue-200">
-              <h2 className="text-lg font-semibold text-blue-900 flex items-center">
-                <span className="mr-2">💰</span> Grants Tracker
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3">
-                {MOCK_GRANTS.filter(g => g.name).map(grant => (
-                  <div key={grant.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-slate-800">{grant.name}</p>
-                      <p className="text-xs text-slate-500">Deadline: {grant.deadline}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`px-3 py-1 text-xs rounded-full ${
-                        grant.status === 'Applied' ? 'bg-green-100 text-green-800' :
-                        grant.status === 'Drafting' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-slate-100 text-slate-800'
-                      }`}>
-                        {grant.status}
-                      </span>
-                      {grant.amount > 0 && (
-                        <p className="text-xs text-slate-600 mt-1">₩{(grant.amount/1000000).toFixed(0)}M</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-slate-400">
-          <p>Notion Ops Dashboard • Built for David Kim</p>
-          <p className="mt-1">Data source: Notion Ops HQ (Mock Mode)</p>
+        <div className="space-y-6">
+          <div className={cardClass}>
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+              Leads Pipeline
+            </h2>
+            
+            <div className="text-center mb-6">
+              <div className="text-4xl font-bold text-green-400">
+                ${(totalPipeline / 1000).toFixed(0)}k
+              </div>
+              <div className="text-sm text-gray-400">Total Pipeline Value</div>
+            </div>
+
+            <div className="space-y-2">
+              {Object.entries(leadsByStatus).map(([status, count]) => (
+                <div key={status} className="flex items-center justify-between p-2 bg-white/5 rounded">
+                  <span className="text-sm">{status}</span>
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300">{count}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="text-sm text-gray-400">
+                Total Leads: <span className="text-white font-semibold">{data.leads.length}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={cardClass}>
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+              Grants Tracker
+            </h2>
+            
+            <div className="text-center mb-6">
+              <div className="text-4xl font-bold text-purple-400">
+                ${(totalGrants / 1000000).toFixed(2)}M
+              </div>
+              <div className="text-sm text-gray-400">Total Grant Value</div>
+            </div>
+
+            <div className="space-y-2">
+              {Object.entries(grantsByStatus).map(([status, count]) => (
+                <div key={status} className="flex items-center justify-between p-2 bg-white/5 rounded">
+                  <span className="text-sm">{status}</span>
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300">{count}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="text-sm text-gray-400">
+                Total Grants: <span className="text-white font-semibold">{data.grants.length}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold mb-4">Quick Links</h2>
+            <div className="space-y-2">
+              <a 
+                href="https://www.notion.so/s7yle/Ops-HQ-2fced2644bae8073b1a3ebc327ab67ee"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-sm"
+              >
+                📋 Open Ops HQ in Notion →
+              </a>
+              <div className="text-xs text-gray-500 mt-2">
+                Auto-refreshes every 60 seconds
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
